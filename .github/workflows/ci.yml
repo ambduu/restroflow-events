@@ -22,6 +22,7 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+      - run: npm run build -w @restroflow-events/dashboard
 
   integration:
     name: End-to-end with real Kafka

@@ -69,6 +69,22 @@ export class Projection {
         updated_at TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS orders_placed ON orders (tenant, placed_at);
+      CREATE INDEX IF NOT EXISTS orders_status ON orders (tenant, status);
+      -- Recent stream for the live dashboard (bounded per tenant)
+      CREATE TABLE IF NOT EXISTS event_log (
+        seq INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_id TEXT NOT NULL,
+        tenant TEXT NOT NULL,
+        type TEXT NOT NULL,
+        topic TEXT NOT NULL,
+        entity_id INTEGER,
+        label TEXT,
+        status TEXT,
+        total REAL,
+        occurred_at TEXT NOT NULL,
+        received_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS event_log_tenant ON event_log (tenant, seq);
     `);
   }
 
@@ -86,12 +102,29 @@ export class Projection {
       if (event.type === 'product.updated') this.applyProduct(event);
       else if (event.type === 'store.updated') this.applyStore(event);
       else this.applyOrder(event);
+      this.logEvent(event);
       this.db.exec('COMMIT');
       return true;
     } catch (err) {
       this.db.exec('ROLLBACK');
       throw err;
     }
+  }
+
+  private logEvent(e: DomainEvent): void {
+    const row =
+      e.type === 'product.updated'
+        ? { topic: 'restroflow.catalog.v1', id: e.product.id, label: e.product.name ?? `#${e.product.id}`, status: e.product.available === false ? 'sold_out' : 'available', total: e.product.price ?? null }
+        : e.type === 'store.updated'
+          ? { topic: 'restroflow.store.v1', id: 0, label: 'store', status: e.store.paused ? 'paused' : 'open', total: null }
+          : { topic: 'restroflow.orders.v1', id: e.order.id, label: e.order.number, status: e.order.status, total: e.order.total };
+    this.db
+      .prepare('INSERT INTO event_log (event_id, tenant, type, topic, entity_id, label, status, total, occurred_at, received_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(e.eventId, e.tenant, e.type, row.topic, row.id, row.label, row.status, row.total, e.occurredAt, e.receivedAt);
+    // keep the log small: last 500 events per tenant
+    this.db
+      .prepare('DELETE FROM event_log WHERE tenant = ? AND seq <= (SELECT seq FROM event_log WHERE tenant = ? ORDER BY seq DESC LIMIT 1 OFFSET 500)')
+      .run(e.tenant, e.tenant);
   }
 
   private applyOrder(e: OrderEvent): void {

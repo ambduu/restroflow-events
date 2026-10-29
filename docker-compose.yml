@@ -1,7 +1,8 @@
 # Local stack: Kafka (KRaft, no ZooKeeper) + Kafka UI + ingest + analytics.
 #   docker compose up -d --build
 #   npm run simulate -- --orders 25
-#   open http://localhost:8081/v1/stats/namaste-india-siegen   (stats)
+#   open http://localhost:8081                                 (live dashboard)
+#   open http://localhost:8081/v1/stats/namaste-india-siegen   (stats JSON)
 #   open http://localhost:8090                                 (Kafka UI: topics, messages, consumer lag)
 services:
   kafka:
