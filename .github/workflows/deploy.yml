@@ -1,0 +1,117 @@
+# Deploys to the Oracle Cloud VM after CI passed on main (or manually).
+# The server gets its configuration only from GitHub secrets; nothing secret is in the repo.
+name: Deploy → Oracle Cloud
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 30
+    env:
+      HOST: ${{ secrets.ORACLE_HOST }}
+      SSH_USER: ${{ secrets.ORACLE_USER }}
+      SSH_KEY: ${{ secrets.ORACLE_SSH_KEY }}
+      SITE_ADDRESS: ${{ secrets.SITE_ADDRESS }}
+    steps:
+      - name: Check configuration
+        id: check
+        run: |
+          missing=""
+          for v in HOST SSH_USER SSH_KEY SITE_ADDRESS; do [ -z "${!v}" ] && missing="$missing $v"; done
+          for s in TENANTS KAFKA_BROKERS; do [ -z "$(printenv "S_$s")" ] && missing="$missing $s"; done
+          if [ -n "$missing" ]; then
+            echo "::warning::Deploy skipped – missing secrets:$missing (see deploy/oracle/README.md)"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          S_TENANTS: ${{ secrets.TENANTS }}
+          S_KAFKA_BROKERS: ${{ secrets.KAFKA_BROKERS }}
+
+      - uses: actions/checkout@v4
+        if: steps.check.outputs.ready == 'true'
+
+      - name: SSH setup
+        if: steps.check.outputs.ready == 'true'
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy && chmod 600 ~/.ssh/id_deploy
+          ssh-keyscan -T 20 -H "$HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          printf 'Host prod\n  HostName %s\n  User %s\n  IdentityFile ~/.ssh/id_deploy\n  ServerAliveInterval 30\n' "$HOST" "$SSH_USER" > ~/.ssh/config
+
+      - name: Bootstrap server (idempotent)
+        if: steps.check.outputs.ready == 'true'
+        run: ssh prod 'bash -s' < deploy/oracle/bootstrap.sh
+
+      - name: Write server configuration
+        if: steps.check.outputs.ready == 'true'
+        env:
+          TENANTS: ${{ secrets.TENANTS }}
+          KAFKA_BROKERS: ${{ secrets.KAFKA_BROKERS }}
+          KAFKA_CA_PEM: ${{ secrets.KAFKA_CA_PEM }}
+          KAFKA_CERT_PEM: ${{ secrets.KAFKA_CERT_PEM }}
+          KAFKA_KEY_PEM: ${{ secrets.KAFKA_KEY_PEM }}
+          KAFKA_SASL_MECHANISM: ${{ secrets.KAFKA_SASL_MECHANISM }}
+          KAFKA_USERNAME: ${{ secrets.KAFKA_USERNAME }}
+          KAFKA_PASSWORD: ${{ secrets.KAFKA_PASSWORD }}
+          ACME_EMAIL: ${{ secrets.ACME_EMAIL }}
+        run: |
+          b64() { [ -n "$1" ] && printf '%s' "$1" | base64 -w0 || true; }
+          {
+            echo "SITE_ADDRESS=$SITE_ADDRESS"
+            echo "ACME_EMAIL=${ACME_EMAIL:-}"
+            echo "TENANTS=$TENANTS"
+            echo "KAFKA_BROKERS=$KAFKA_BROKERS"
+            echo "KAFKA_SSL=true"
+            # PEMs as base64 so they fit on one line (the services decode them)
+            [ -n "$KAFKA_CA_PEM" ] && echo "KAFKA_CA_PEM=$(b64 "$KAFKA_CA_PEM")"
+            [ -n "$KAFKA_CERT_PEM" ] && echo "KAFKA_CERT_PEM=$(b64 "$KAFKA_CERT_PEM")"
+            [ -n "$KAFKA_KEY_PEM" ] && echo "KAFKA_KEY_PEM=$(b64 "$KAFKA_KEY_PEM")"
+            [ -n "$KAFKA_SASL_MECHANISM" ] && echo "KAFKA_SASL_MECHANISM=$KAFKA_SASL_MECHANISM"
+            [ -n "$KAFKA_USERNAME" ] && echo "KAFKA_USERNAME=$KAFKA_USERNAME"
+            [ -n "$KAFKA_PASSWORD" ] && echo "KAFKA_PASSWORD=$KAFKA_PASSWORD"
+            echo "TOPIC_PARTITIONS=2"
+            echo "ANALYTICS_GROUP_ID=restroflow-analytics"
+            true
+          } > env.prod
+          scp -q env.prod prod:/opt/restroflow/.env.new
+          ssh prod 'mv /opt/restroflow/.env.new /opt/restroflow/.env && chmod 600 /opt/restroflow/.env'
+          rm -f env.prod
+
+      - name: Build & start
+        if: steps.check.outputs.ready == 'true'
+        run: |
+          ssh prod "set -e
+            cd /opt/restroflow/repo
+            git fetch --depth 1 origin ${GITHUB_SHA}
+            git reset --hard ${GITHUB_SHA}
+            sg docker -c 'docker compose -f deploy/oracle/compose.prod.yml up -d --build --remove-orphans'
+            sg docker -c 'docker image prune -f' >/dev/null"
+
+      - name: Health check
+        if: steps.check.outputs.ready == 'true'
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS "https://$SITE_ADDRESS/healthz" > health.json 2>/dev/null; then
+              echo "### ✅ Live: https://$SITE_ADDRESS" >> "$GITHUB_STEP_SUMMARY"
+              cat health.json
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::https://$SITE_ADDRESS/healthz did not respond"
+          ssh prod "sg docker -c 'docker compose -f /opt/restroflow/repo/deploy/oracle/compose.prod.yml ps; docker compose -f /opt/restroflow/repo/deploy/oracle/compose.prod.yml logs --tail 60'" || true
+          exit 1

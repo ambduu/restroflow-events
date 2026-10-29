@@ -22,8 +22,14 @@ function loadTenants(): Record<string, string> {
 async function main() {
   const kafkaCfg = kafkaConfigFromEnv('restroflow-ingest');
   if (process.env.CREATE_TOPICS !== 'false') {
-    const created = await ensureTopics(createKafka(kafkaCfg), { partitions: Number(process.env.TOPIC_PARTITIONS ?? 2) });
-    if (created.length) console.log('created topics', created);
+    // Managed Kafka (e.g. Aiven free tier) may not allow creating topics via the API –
+    // then create them once in the provider's console and carry on.
+    try {
+      const created = await ensureTopics(createKafka(kafkaCfg), { partitions: Number(process.env.TOPIC_PARTITIONS ?? 2) });
+      if (created.length) console.log('created topics', created);
+    } catch (err) {
+      console.warn('could not create topics automatically – make sure they exist:', String(err));
+    }
   }
 
   const publisher = new KafkaPublisher(kafkaCfg);

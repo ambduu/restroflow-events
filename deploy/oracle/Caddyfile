@@ -1,0 +1,44 @@
+# HTTPS with automatic Let's Encrypt certificates.
+# SITE_ADDRESS is a host name pointing at the VM, e.g. events.example.com
+{
+	email {$ACME_EMAIL}
+}
+
+{$SITE_ADDRESS} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'"
+		-Server
+	}
+
+	# RestroFlow webhooks → ingest service
+	handle /v1/webhooks/* {
+		request_body {
+			max_size 256KB
+		}
+		reverse_proxy ingest:8080
+	}
+
+	# Prometheus counters stay internal
+	handle /metrics {
+		respond 404
+	}
+
+	# Dashboard, stats API and the live event stream → analytics
+	handle {
+		reverse_proxy analytics:8081 {
+			# server-sent events: forward every chunk immediately
+			flush_interval -1
+		}
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

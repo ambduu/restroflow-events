@@ -1,0 +1,65 @@
+# Production stack on the Oracle Cloud VM (Ampere A1, arm64).
+# Kafka is managed (Aiven); this runs ingest, analytics + dashboard, and Caddy for HTTPS.
+# Started by .github/workflows/deploy.yml:
+#   docker compose -f deploy/oracle/compose.prod.yml --env-file /opt/restroflow/.env up -d --build
+name: restroflow
+
+services:
+  ingest:
+    build: { context: ../.., args: { SERVICE: ingest } }
+    restart: unless-stopped
+    env_file: /opt/restroflow/.env
+    environment:
+      PORT: "8080"
+      LOG_LEVEL: info
+    expose: ["8080"]
+    deploy:
+      resources:
+        limits: { memory: 512m }
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/readyz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  analytics:
+    build: { context: ../.., args: { SERVICE: analytics } }
+    restart: unless-stopped
+    env_file: /opt/restroflow/.env
+    environment:
+      PORT: "8081"
+      ANALYTICS_DB: /data/analytics.sqlite
+      DASHBOARD_DIR: /app/apps/dashboard/dist
+      LOG_LEVEL: info
+    volumes:
+      - analytics-data:/data
+    expose: ["8081"]
+    deploy:
+      resources:
+        limits: { memory: 768m }
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8081/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  caddy:
+    image: caddy:2.10
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    env_file: /opt/restroflow/.env
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - ingest
+      - analytics
+
+volumes:
+  analytics-data:
+  caddy-data:
+  caddy-config:

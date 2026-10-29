@@ -100,4 +100,4 @@ TypeScript · Node.js 22 · Apache Kafka 4 (KRaft) · `@confluentinc/kafka-javas
 - [x] Live dashboard (React, server-sent events)
 - [ ] Alerting consumer ("order not accepted after 10 minutes")
 - [ ] Schema Registry (Avro/JSON Schema) for versioned events
-- [ ] Live deployment on managed Kafka, connected to namasteindia-siegen.com
+- [ ] Live deployment: Oracle Cloud (Always Free, arm64) + Aiven Kafka, CD over SSH, HTTPS via Caddy – see [deploy/oracle](deploy/oracle/README.md)

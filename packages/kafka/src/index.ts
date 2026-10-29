@@ -9,16 +9,26 @@ export type Consumer = KafkaJS.Consumer;
 export interface KafkaEnvConfig {
   brokers: string[];
   clientId: string;
-  /** SASL/SCRAM over TLS – e.g. Aiven ("SCRAM-SHA-256"). Omit for local plaintext Kafka. */
+  /** SASL/SCRAM over TLS (e.g. Aiven with SASL enabled). */
   sasl?: { mechanism: 'scram-sha-256' | 'scram-sha-512' | 'plain'; username: string; password: string };
-  ssl?: { ca?: string };
+  /** TLS; with cert+key this is mutual TLS (Aiven's default "client certificate" auth). */
+  ssl?: { ca?: string; cert?: string; key?: string };
+}
+
+/** PEM from an env var (literal or base64) or from a file path in <NAME>_FILE. */
+function pem(env: NodeJS.ProcessEnv, name: string): string | undefined {
+  const inline = env[name];
+  if (inline) return inline.includes('-----BEGIN') ? inline.replace(/\\n/g, '\n') : Buffer.from(inline, 'base64').toString('utf8');
+  const file = env[`${name}_FILE`];
+  return file ? readFileSync(file, 'utf8') : undefined;
 }
 
 /**
  * Read connection settings from the environment:
- *   KAFKA_BROKERS=host:port[,host:port]   (default localhost:9092)
- *   KAFKA_SASL_MECHANISM=scram-sha-256    KAFKA_USERNAME=…  KAFKA_PASSWORD=…
- *   KAFKA_SSL=true                        KAFKA_CA_FILE=/path/ca.pem  or  KAFKA_CA_PEM="-----BEGIN…"
+ *   KAFKA_BROKERS=host:port[,host:port]          (default localhost:9092, plaintext)
+ *   Aiven, client certificate (default):  KAFKA_SSL=true  KAFKA_CA_PEM  KAFKA_CERT_PEM  KAFKA_KEY_PEM
+ *   Aiven, SASL:  KAFKA_SASL_MECHANISM=scram-sha-256  KAFKA_USERNAME  KAFKA_PASSWORD  KAFKA_CA_PEM
+ *   Every *_PEM can also be base64, or a file via *_PEM_FILE.
  */
 export function kafkaConfigFromEnv(clientId: string, env: NodeJS.ProcessEnv = process.env): KafkaEnvConfig {
   const cfg: KafkaEnvConfig = {
@@ -32,22 +42,40 @@ export function kafkaConfigFromEnv(clientId: string, env: NodeJS.ProcessEnv = pr
       password: env.KAFKA_PASSWORD ?? '',
     };
   }
-  if (env.KAFKA_SSL === 'true' || cfg.sasl) {
-    const ca = env.KAFKA_CA_PEM ?? (env.KAFKA_CA_FILE ? readFileSync(env.KAFKA_CA_FILE, 'utf8') : undefined);
-    cfg.ssl = ca ? { ca } : {};
+  const ca = pem(env, 'KAFKA_CA_PEM') ?? (env.KAFKA_CA_FILE ? readFileSync(env.KAFKA_CA_FILE, 'utf8') : undefined);
+  const cert = pem(env, 'KAFKA_CERT_PEM');
+  const key = pem(env, 'KAFKA_KEY_PEM');
+  if (env.KAFKA_SSL === 'true' || cfg.sasl || ca || cert) {
+    cfg.ssl = {};
+    if (ca) cfg.ssl.ca = ca;
+    if (cert) cfg.ssl.cert = cert;
+    if (key) cfg.ssl.key = key;
   }
   return cfg;
 }
 
+/** librdkafka properties for TLS / SASL (passed next to the KafkaJS-style block). */
+export function securityProperties(cfg: KafkaEnvConfig): Record<string, string> {
+  const props: Record<string, string> = {};
+  if (cfg.sasl) {
+    props['security.protocol'] = 'sasl_ssl';
+    props['sasl.mechanisms'] = cfg.sasl.mechanism.toUpperCase();
+    props['sasl.username'] = cfg.sasl.username;
+    props['sasl.password'] = cfg.sasl.password;
+  } else if (cfg.ssl) {
+    props['security.protocol'] = 'ssl';
+  }
+  if (cfg.ssl?.ca) props['ssl.ca.pem'] = cfg.ssl.ca;
+  if (cfg.ssl?.cert) props['ssl.certificate.pem'] = cfg.ssl.cert;
+  if (cfg.ssl?.key) props['ssl.key.pem'] = cfg.ssl.key;
+  return props;
+}
+
 export function createKafka(cfg: KafkaEnvConfig): Kafka {
-  const kafkaJS: Record<string, unknown> = {
-    clientId: cfg.clientId,
-    brokers: cfg.brokers,
-    logLevel: KafkaJS.logLevel.WARN,
-  };
-  if (cfg.ssl) kafkaJS.ssl = cfg.ssl.ca ? { ca: [cfg.ssl.ca] } : true;
-  if (cfg.sasl) kafkaJS.sasl = cfg.sasl;
-  return new KafkaJS.Kafka({ kafkaJS } as unknown as ConstructorParameters<typeof KafkaJS.Kafka>[0]);
+  return new KafkaJS.Kafka({
+    kafkaJS: { clientId: cfg.clientId, brokers: cfg.brokers, logLevel: KafkaJS.logLevel.WARN },
+    ...securityProperties(cfg),
+  } as unknown as ConstructorParameters<typeof KafkaJS.Kafka>[0]);
 }
 
 /**
