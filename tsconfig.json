@@ -1,0 +1,17 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "packages/contracts"
+    },
+    {
+      "path": "packages/kafka"
+    },
+    {
+      "path": "services/ingest"
+    },
+    {
+      "path": "services/analytics"
+    }
+  ]
+}

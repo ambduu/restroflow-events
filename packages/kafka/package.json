@@ -1,0 +1,21 @@
+{
+  "name": "@restroflow-events/kafka",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Kafka client factory (local Docker or managed Kafka such as Aiven), topic setup.",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "@confluentinc/kafka-javascript": "1.11.0",
+    "@restroflow-events/contracts": "0.1.0"
+  }
+}

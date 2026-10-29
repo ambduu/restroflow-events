@@ -1,0 +1,30 @@
+{
+  "name": "restroflow-events",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Real-time event platform for RestroFlow restaurants: signed webhooks → Kafka → analytics.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "workspaces": [
+    "packages/*",
+    "services/*"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --pretty",
+    "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "dev:ingest": "npm run dev -w @restroflow-events/ingest",
+    "dev:analytics": "npm run dev -w @restroflow-events/analytics",
+    "simulate": "tsx --conditions=source scripts/simulate.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^5.0.5"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "name": "@restroflow-events/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Event schemas, topic names, privacy filter and event IDs shared by all services.",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "zod": "^4.6.7"
+  }
+}
