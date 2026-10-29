@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-time (idempotent) server setup for an Oracle Cloud Ubuntu VM.
+# One-time (idempotent) setup for an Ubuntu server (Hetzner Cloud, Oracle Cloud, any VPS).
 # Run by the deploy workflow over SSH; safe to run again.
 set -euo pipefail
 
@@ -12,23 +12,22 @@ log() { echo "==> $*"; }
 if ! command -v docker >/dev/null 2>&1; then
   log "installing Docker"
   curl -fsSL https://get.docker.com | sudo sh
-  sudo usermod -aG docker "$USER"
+  if [ "$(id -u)" -ne 0 ]; then sudo usermod -aG docker "$(id -un)"; fi
 fi
 sudo systemctl enable --now docker >/dev/null
 
-# 2. Host firewall: Oracle's Ubuntu images reject everything except SSH by default.
-#    (Ports 80/443 must ALSO be opened in the VCN security list in the Oracle console.)
-for port in 80 443; do
-  if ! sudo iptables -C INPUT -p tcp --dport "$port" -m state --state NEW -j ACCEPT 2>/dev/null; then
-    log "opening tcp/$port"
-    sudo iptables -I INPUT 6 -p tcp --dport "$port" -m state --state NEW -j ACCEPT
-  fi
-done
-if ! sudo iptables -C INPUT -p udp --dport 443 -j ACCEPT 2>/dev/null; then
-  sudo iptables -I INPUT 6 -p udp --dport 443 -j ACCEPT
-fi
-if command -v netfilter-persistent >/dev/null 2>&1; then
-  sudo netfilter-persistent save >/dev/null
+# 2. Host firewall. Hetzner/most VPS images have no host rules (use the provider's
+#    cloud firewall instead); Oracle's Ubuntu images REJECT everything except SSH,
+#    so only in that case open 80/443 before the REJECT rule.
+if sudo iptables -S INPUT 2>/dev/null | grep -q -- '-j REJECT'; then
+  for port in 80 443; do
+    if ! sudo iptables -C INPUT -p tcp --dport "$port" -m state --state NEW -j ACCEPT 2>/dev/null; then
+      log "opening tcp/$port before the REJECT rule"
+      sudo iptables -I INPUT 1 -p tcp --dport "$port" -m state --state NEW -j ACCEPT
+    fi
+  done
+  sudo iptables -C INPUT -p udp --dport 443 -j ACCEPT 2>/dev/null || sudo iptables -I INPUT 1 -p udp --dport 443 -j ACCEPT
+  if command -v netfilter-persistent >/dev/null 2>&1; then sudo netfilter-persistent save >/dev/null; fi
 fi
 
 # 3. Swap (helps the first Docker build on small shapes)
@@ -40,7 +39,7 @@ fi
 
 # 4. Code
 sudo mkdir -p "$APP_DIR"
-sudo chown "$USER":"$USER" "$APP_DIR"
+sudo chown "$(id -un)":"$(id -gn)" "$APP_DIR"
 if [ ! -d "$APP_DIR/repo/.git" ]; then
   log "cloning $REPO"
   git clone --depth 1 "$REPO" "$APP_DIR/repo"

@@ -1,7 +1,7 @@
-# Production stack on the Oracle Cloud VM (Ampere A1, arm64).
+# Production stack on the VPS (Hetzner Cloud CX23, x86-64 – also works on arm64).
 # Kafka is managed (Aiven); this runs ingest, analytics + dashboard, and Caddy for HTTPS.
 # Started by .github/workflows/deploy.yml:
-#   docker compose -f deploy/oracle/compose.prod.yml --env-file /opt/restroflow/.env up -d --build
+#   docker compose -f deploy/server/compose.prod.yml --env-file /opt/restroflow/.env up -d --build
 name: restroflow
 
 services:

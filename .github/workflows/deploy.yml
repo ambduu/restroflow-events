@@ -1,6 +1,6 @@
-# Deploys to the Oracle Cloud VM after CI passed on main (or manually).
+# Deploys to the production server (Hetzner VPS) after CI passed on main (or manually).
 # The server gets its configuration only from GitHub secrets; nothing secret is in the repo.
-name: Deploy → Oracle Cloud
+name: Deploy → production server
 
 on:
   workflow_run:
@@ -20,9 +20,9 @@ jobs:
     environment: production
     timeout-minutes: 30
     env:
-      HOST: ${{ secrets.ORACLE_HOST }}
-      SSH_USER: ${{ secrets.ORACLE_USER }}
-      SSH_KEY: ${{ secrets.ORACLE_SSH_KEY }}
+      HOST: ${{ secrets.SERVER_HOST }}
+      SSH_USER: ${{ secrets.SERVER_USER }}
+      SSH_KEY: ${{ secrets.SERVER_SSH_KEY }}
       SITE_ADDRESS: ${{ secrets.SITE_ADDRESS }}
     steps:
       - name: Check configuration
@@ -32,7 +32,7 @@ jobs:
           for v in HOST SSH_USER SSH_KEY SITE_ADDRESS; do [ -z "${!v}" ] && missing="$missing $v"; done
           for s in TENANTS KAFKA_BROKERS; do [ -z "$(printenv "S_$s")" ] && missing="$missing $s"; done
           if [ -n "$missing" ]; then
-            echo "::warning::Deploy skipped – missing secrets:$missing (see deploy/oracle/README.md)"
+            echo "::warning::Deploy skipped – missing secrets:$missing (see deploy/server/README.md)"
             echo "ready=false" >> "$GITHUB_OUTPUT"
           else
             echo "ready=true" >> "$GITHUB_OUTPUT"
@@ -54,7 +54,7 @@ jobs:
 
       - name: Bootstrap server (idempotent)
         if: steps.check.outputs.ready == 'true'
-        run: ssh prod 'bash -s' < deploy/oracle/bootstrap.sh
+        run: ssh prod 'bash -s' < deploy/server/bootstrap.sh
 
       - name: Write server configuration
         if: steps.check.outputs.ready == 'true'
@@ -98,8 +98,9 @@ jobs:
             cd /opt/restroflow/repo
             git fetch --depth 1 origin ${GITHUB_SHA}
             git reset --hard ${GITHUB_SHA}
-            sg docker -c 'docker compose -f deploy/oracle/compose.prod.yml up -d --build --remove-orphans'
-            sg docker -c 'docker image prune -f' >/dev/null"
+            D=docker; if [ \$(id -u) -ne 0 ]; then D='sudo docker'; fi
+            \$D compose -f deploy/server/compose.prod.yml up -d --build --remove-orphans
+            \$D image prune -f >/dev/null"
 
       - name: Health check
         if: steps.check.outputs.ready == 'true'
@@ -113,5 +114,5 @@ jobs:
             sleep 10
           done
           echo "::error::https://$SITE_ADDRESS/healthz did not respond"
-          ssh prod "sg docker -c 'docker compose -f /opt/restroflow/repo/deploy/oracle/compose.prod.yml ps; docker compose -f /opt/restroflow/repo/deploy/oracle/compose.prod.yml logs --tail 60'" || true
+          ssh prod 'D=docker; [ "$(id -u)" -ne 0 ] && D="sudo docker"; $D compose -f /opt/restroflow/repo/deploy/server/compose.prod.yml ps; $D compose -f /opt/restroflow/repo/deploy/server/compose.prod.yml logs --tail 60' || true
           exit 1
