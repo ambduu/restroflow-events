@@ -67,3 +67,4 @@ jobs:
       - uses: actions/checkout@v4
       - run: docker build --build-arg SERVICE=ingest -t restroflow-ingest .
       - run: docker build --build-arg SERVICE=analytics -t restroflow-analytics .
+      - run: docker build -t restroflow-edge .   # SERVICE=edge (default) – the Render image

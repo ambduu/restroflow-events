@@ -1,23 +1,6 @@
 import { ensureTopics, createKafka, kafkaConfigFromEnv } from '@restroflow-events/kafka';
-import { buildApp } from './app.js';
+import { buildApp, loadTenants } from './app.js';
 import { KafkaPublisher } from './publisher.js';
-
-/**
- * TENANTS: JSON map tenant-slug → webhook secret, e.g.
- *   TENANTS='{"namaste-india-siegen":"<secret from RestroFlow › Webhooks>"}'
- */
-function loadTenants(): Record<string, string> {
-  const raw = process.env.TENANTS ?? '';
-  if (!raw) throw new Error('TENANTS is not set (JSON: {"tenant-slug":"webhook-secret"})');
-  const parsed = JSON.parse(raw) as Record<string, unknown>;
-  const out: Record<string, string> = {};
-  for (const [slug, secret] of Object.entries(parsed)) {
-    if (!/^[a-z0-9-]{2,60}$/.test(slug)) throw new Error(`Invalid tenant slug: ${slug}`);
-    if (typeof secret !== 'string' || secret.length < 16) throw new Error(`Secret for ${slug} must be at least 16 characters`);
-    out[slug] = secret;
-  }
-  return out;
-}
 
 async function main() {
   const kafkaCfg = kafkaConfigFromEnv('restroflow-ingest');

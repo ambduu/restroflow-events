@@ -5,6 +5,18 @@
   "type": "module",
   "description": "Receives signed RestroFlow webhooks, strips personal data and publishes events to Kafka.",
   "main": "dist/server.js",
+  "exports": {
+    "./app": {
+      "source": "./src/app.ts",
+      "types": "./dist/app.d.ts",
+      "default": "./dist/app.js"
+    },
+    "./publisher": {
+      "source": "./src/publisher.ts",
+      "types": "./dist/publisher.d.ts",
+      "default": "./dist/publisher.js"
+    }
+  },
   "scripts": {
     "build": "tsc -b",
     "dev": "tsx watch --conditions=source src/server.ts",

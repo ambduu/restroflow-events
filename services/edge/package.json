@@ -1,0 +1,19 @@
+{
+  "name": "@restroflow-events/edge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Ingest + analytics + dashboard in one process – for small/free hosts (e.g. Render free).",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "tsc -b",
+    "dev": "tsx watch --conditions=source src/server.ts",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@restroflow-events/analytics": "0.1.0",
+    "@restroflow-events/ingest": "0.1.0",
+    "@restroflow-events/kafka": "0.1.0",
+    "fastify": "^5.2.0"
+  }
+}

@@ -38,6 +38,7 @@ flowchart LR
 | **Ingest** (`services/ingest`) | Fastify service. Verifies RestroFlow's `X-RestroFlow-Signature` over the raw body (constant-time), validates the payload with Zod, strips personal data, assigns a stable event ID and publishes to Kafka with an idempotent producer (`acks=all`). |
 | **Analytics** (`services/analytics`) | Kafka consumer group that projects events into a SQLite read model and serves statistics: orders and revenue, orders per hour (restaurant time zone), best sellers, time to accept and preparation time, web vs. iOS vs. Android, store paused/open. |
 | **Dashboard** (`apps/dashboard`) | React page served by the analytics service. The kitchen pass shows every open order as a ticket on its lane (new, in the kitchen, ready, picked up) and moves it the moment the next Kafka event is consumed, via server-sent events. Below it: sales figures, orders by hour, best sellers, channels, revenue by day and the raw event stream. |
+| **Edge** (`services/edge`) | Ingest, analytics and dashboard mounted on one Fastify instance – same code, one container – for free hosting. The two halves still only talk through Kafka. |
 | **Contracts** (`packages/contracts`) | Shared event schemas, topic names, privacy filter, signature helpers and realistic fake payloads. |
 
 ## Design decisions
@@ -55,6 +56,8 @@ flowchart LR
 **Live without polling Kafka from the browser.** The browser never talks to Kafka. The analytics consumer applies each event to its read model first, then pushes a small summary over server-sent events; the page re-reads the board and statistics from the same read model, so what you see always matches the stored state. After a reconnect the page re-syncs automatically.
 
 **Replay.** Deleting the read model and starting the consumer with a new group ID rebuilds every statistic from the retained events, which is useful when a new metric is added.
+
+**Kafka as the source of truth, the database as a cache.** The free deployment has no disk and sleeps when idle. On every start the edge service joins a fresh consumer group and replays all topics into an in-memory read model, so a restart loses nothing. Webhooks sent while it sleeps fail once, RestroFlow retries them, and the deterministic event IDs keep the counts exact.
 
 ## Run it locally
 
@@ -100,4 +103,5 @@ TypeScript · Node.js 22 · Apache Kafka 4 (KRaft) · `@confluentinc/kafka-javas
 - [x] Live dashboard (React, server-sent events)
 - [ ] Alerting consumer ("order not accepted after 10 minutes")
 - [ ] Schema Registry (Avro/JSON Schema) for versioned events
-- [ ] Live deployment: Hetzner VPS + Aiven Kafka, continuous deployment over SSH, HTTPS via Caddy – see [deploy/server](deploy/server/README.md)
+- [ ] Live deployment (free): Render + Aiven Kafka, deploys after green CI – see [deploy/render](deploy/render/README.md)
+- [x] Alternative for a VPS (Hetzner etc.): Docker Compose + Caddy, continuous deployment over SSH – see [deploy/server](deploy/server/README.md)

@@ -12,6 +12,9 @@
     },
     {
       "path": "services/analytics"
+    },
+    {
+      "path": "services/edge"
     }
   ]
 }

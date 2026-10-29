@@ -36,19 +36,46 @@ function scrub(value: unknown): unknown {
   return value;
 }
 
+/**
+ * TENANTS: JSON map tenant-slug → webhook secret, e.g.
+ *   TENANTS='{"namaste-india-siegen":"<secret from RestroFlow › Webhooks>"}'
+ */
+export function loadTenants(raw: string = process.env.TENANTS ?? ''): Record<string, string> {
+  if (!raw) throw new Error('TENANTS is not set (JSON: {"tenant-slug":"webhook-secret"})');
+  const parsed = JSON.parse(raw) as Record<string, unknown>;
+  const out: Record<string, string> = {};
+  for (const [slug, secret] of Object.entries(parsed)) {
+    if (!/^[a-z0-9-]{2,60}$/.test(slug)) throw new Error(`Invalid tenant slug: ${slug}`);
+    if (typeof secret !== 'string' || secret.length < 16) throw new Error(`Secret for ${slug} must be at least 16 characters`);
+    out[slug] = secret;
+  }
+  return out;
+}
+
+/** Standalone ingest service (own Fastify instance, own /healthz). */
 export function buildApp(opts: IngestOptions): FastifyInstance {
   const app = Fastify({
     logger: opts.logger ?? false,
     bodyLimit: opts.maxBodyBytes ?? 256 * 1024,
     trustProxy: true,
   });
+  registerIngest(app, opts);
+  return app;
+}
+
+/**
+ * Registers the webhook routes on an existing Fastify instance. Used by the
+ * standalone service above and by the single-process "edge" service (free hosting).
+ * Register it inside its own plugin scope so the raw-body JSON parser stays local.
+ */
+export function registerIngest(app: FastifyInstance, opts: IngestOptions & { healthRoutes?: boolean }): void {
   const recent = new RecentIds();
   const counters: Record<Outcome, number> = { published: 0, duplicate: 0, dead_lettered: 0, unauthorized: 0, unknown_tenant: 0, unavailable: 0 };
 
   // Keep the raw bytes: the HMAC is computed over the exact body RestroFlow sent.
   app.addContentTypeParser('application/json', { parseAs: 'buffer' }, (_req, body, done) => done(null, body));
 
-  app.get('/healthz', async () => ({ ok: true }));
+  if (opts.healthRoutes !== false) app.get('/healthz', async () => ({ ok: true }));
   app.get('/readyz', async (_req, reply) => {
     const ready = opts.publisher.isReady();
     return reply.code(ready ? 200 : 503).send({ ready });
@@ -140,6 +167,4 @@ export function buildApp(opts: IngestOptions): FastifyInstance {
       return reply.code(503).send({ error: 'temporarily_unavailable' });
     }
   });
-
-  return app;
 }

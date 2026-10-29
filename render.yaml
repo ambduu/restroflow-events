@@ -1,0 +1,36 @@
+# Render Blueprint – free single-container deployment (ingest + analytics + dashboard).
+# Render dashboard → New → Blueprint → pick this repo. Secrets (sync: false) are asked for once.
+# Kafka itself runs on Aiven (free plan). See deploy/render/README.md.
+services:
+  - type: web
+    name: restroflow-events
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /healthz
+    autoDeployTrigger: checksPass   # deploy only after GitHub CI is green
+    domains:
+      - events.namasteindia-siegen.com
+    envVars:
+      - key: SERVICE
+        value: edge
+      - key: NODE_ENV
+        value: production
+      - key: REPLAY_ON_START
+        value: "true"            # no disk on the free plan → rebuild statistics from Kafka on boot
+      - key: KAFKA_SSL
+        value: "true"
+      - key: LOG_LEVEL
+        value: info
+      - key: TENANTS
+        sync: false              # {"namaste-india-siegen":"<webhook secret>"}
+      - key: KAFKA_BROKERS
+        sync: false              # Aiven service URI host:port
+      - key: KAFKA_CA_PEM
+        sync: false              # contents of ca.pem
+      - key: KAFKA_CERT_PEM
+        sync: false              # contents of service.cert
+      - key: KAFKA_KEY_PEM
+        sync: false              # contents of service.key

@@ -5,6 +5,28 @@
   "type": "module",
   "description": "Kafka consumer that builds idempotent sales/kitchen statistics and serves them over HTTP.",
   "main": "dist/server.js",
+  "exports": {
+    "./http": {
+      "source": "./src/http.ts",
+      "types": "./dist/http.d.ts",
+      "default": "./dist/http.js"
+    },
+    "./projection": {
+      "source": "./src/projection.ts",
+      "types": "./dist/projection.d.ts",
+      "default": "./dist/projection.js"
+    },
+    "./consumer": {
+      "source": "./src/consumer.ts",
+      "types": "./dist/consumer.d.ts",
+      "default": "./dist/consumer.js"
+    },
+    "./live": {
+      "source": "./src/live.ts",
+      "types": "./dist/live.d.ts",
+      "default": "./dist/live.js"
+    }
+  },
   "scripts": {
     "build": "tsc -b",
     "dev": "tsx watch --conditions=source src/server.ts",

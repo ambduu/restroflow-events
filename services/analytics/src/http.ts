@@ -28,9 +28,20 @@ export function startOfLocalDay(now: Date, timeZone: string): Date {
   return new Date(now.getTime() - elapsed);
 }
 
+/** Standalone analytics service. */
 export function buildHttp(projection: Projection, consumerStats: () => ConsumerStats | null, opts: HttpOptions = {}): FastifyInstance {
   const app = Fastify({ logger: opts.logger ?? false });
+  registerAnalytics(app, projection, consumerStats, opts);
+  return app;
+}
 
+/** Registers the stats/board/stream routes and the dashboard on an existing Fastify instance. */
+export function registerAnalytics(
+  app: FastifyInstance,
+  projection: Projection,
+  consumerStats: () => ConsumerStats | null,
+  opts: HttpOptions & { healthRoutes?: boolean } = {},
+): void {
   app.addHook('onSend', async (_req, reply) => {
     if (opts.corsOrigin) reply.header('access-control-allow-origin', opts.corsOrigin);
   });
@@ -40,7 +51,7 @@ export function buildHttp(projection: Projection, consumerStats: () => ConsumerS
     if (t !== undefined && !TENANT.test(t)) return reply.code(400).send({ error: 'invalid_tenant' });
   });
 
-  app.get('/healthz', async () => ({ ok: true, consumer: consumerStats(), liveClients: opts.hub?.clientCount() ?? 0 }));
+  if (opts.healthRoutes !== false) app.get('/healthz', async () => ({ ok: true, consumer: consumerStats(), liveClients: opts.hub?.clientCount() ?? 0 }));
 
   app.get<{ Params: { tenant: string }; Querystring: { days?: string; range?: string; tz?: string } }>('/v1/stats/:tenant', async (req, reply) => {
     const tz = req.query.tz ?? 'Europe/Berlin';
@@ -98,6 +109,4 @@ export function buildHttp(projection: Projection, consumerStats: () => ConsumerS
   if (opts.dashboardDir && existsSync(opts.dashboardDir)) {
     app.register(fastifyStatic, { root: opts.dashboardDir, prefix: '/', index: 'index.html', maxAge: '1h' });
   }
-
-  return app;
 }
