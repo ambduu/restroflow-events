@@ -34,9 +34,12 @@ The infrastructure is defined in [`render.yaml`](../../render.yaml). Render depl
 
 4. **Apply**. The first build takes a few minutes; then `https://restroflow-events.onrender.com/healthz` answers.
 
-## 3. Own domain
+## 3. Own domain (optional)
 
-Render → service → **Settings → Custom Domains** shows `events.namasteindia-siegen.com` (from the blueprint). Add the DNS record it shows where the domain is managed:
+The service already runs with HTTPS at `https://restroflow-events.onrender.com`. For a nicer address:
+
+
+Uncomment `domains` in `render.yaml` (or Render → service → **Settings → Custom Domains → Add**). Add the DNS record it shows where the domain is managed:
 
 | Type | Name | Value |
 |---|---|---|
@@ -47,7 +50,7 @@ Render issues the HTTPS certificate automatically.
 ## 4. Connect RestroFlow
 
 WordPress → **RestroFlow → Webhooks → Add webhook**
-- URL: `https://events.namasteindia-siegen.com/v1/webhooks/restroflow/namaste-india-siegen`
+- URL: `https://restroflow-events.onrender.com/v1/webhooks/restroflow/namaste-india-siegen`
 - Secret: the one from `TENANTS` · Events: all
 
-Open `https://events.namasteindia-siegen.com/` – orders appear on the kitchen pass live.
+Open `https://restroflow-events.onrender.com/` – orders appear on the kitchen pass live.

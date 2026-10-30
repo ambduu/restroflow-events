@@ -11,8 +11,9 @@ services:
     dockerContext: .
     healthCheckPath: /healthz
     autoDeployTrigger: checksPass   # deploy only after GitHub CI is green
-    domains:
-      - events.namasteindia-siegen.com
+    # Own domain (optional): add here, then a DNS CNAME <sub> → restroflow-events.onrender.com
+    # domains:
+    #   - events.namasteindia-siegen.com
     envVars:
       - key: SERVICE
         value: edge
