@@ -13,8 +13,9 @@ const RANGES: Array<{ id: Range; label: string }> = [
 ];
 
 const params = new URLSearchParams(location.search);
-const TENANT = params.get('tenant') ?? 'namaste-india-siegen';
-const NAME = params.get('name') ?? 'Namaste India, Siegen';
+const TENANT = params.get('tenant') ?? 'demo';
+const NAME = params.get('name') ?? 'Spice Route Kitchen';
+const IS_DEMO = TENANT === 'demo';
 
 const CONNECTION_TEXT = { connecting: 'Connecting…', live: 'Live', reconnecting: 'Reconnecting…' } as const;
 
@@ -31,7 +32,10 @@ export function App() {
     <div className="page">
       <header className="top">
         <div className="brand">
-          <h1>{NAME}</h1>
+          <h1>
+            {NAME}
+            {IS_DEMO && <span className="demo-badge">Live demo · simulated orders</span>}
+          </h1>
           <p>Kitchen pass, streamed from RestroFlow through Kafka</p>
         </div>
         <div className="top-right">

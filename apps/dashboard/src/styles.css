@@ -112,6 +112,19 @@ a {
   font-stretch: 82%;
 }
 
+.demo-badge {
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--turmeric-soft);
+  color: #7a5408;
+  font: 600 0.78rem/1.2 var(--mono);
+  letter-spacing: 0;
+  font-stretch: 100%;
+}
+
 .brand p {
   margin-top: 6px;
   color: var(--muted);
@@ -731,4 +744,8 @@ a {
   .charts {
     grid-template-columns: 1fr;
   }
+}
+
+@media (prefers-color-scheme: dark) {
+  .demo-badge { color: var(--turmeric); background: rgba(217, 154, 18, 0.14); }
 }

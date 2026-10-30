@@ -42,7 +42,7 @@ export function fakeOrderWebhook(input: FakeOrderInput) {
     id: input.deliveryId ?? 'dlv_' + Math.random().toString(36).slice(2, 14),
     event,
     created_at: new Date((input.updatedAt ?? placed) * 1000).toISOString(),
-    site: 'https://namasteindia-siegen.com',
+    site: 'https://spice-route.example',
     data: {
       order: {
         id: input.id,
@@ -86,7 +86,7 @@ export function fakeProductWebhook(id: number, available: boolean, modified = Ma
     id: 'dlv_' + Math.random().toString(36).slice(2, 14),
     event: 'product.updated' as const,
     created_at: new Date(modified * 1000).toISOString(),
-    site: 'https://namasteindia-siegen.com',
+    site: 'https://spice-route.example',
     data: { product: { id, sku: d.sku, name: d.name, price: d.unit, available, modified, category_ids: [3] } },
   };
 }
@@ -96,8 +96,8 @@ export function fakeStoreWebhook(paused: boolean, at = Math.floor(Date.now() / 1
     id: 'dlv_' + Math.random().toString(36).slice(2, 14),
     event: 'store.updated' as const,
     created_at: new Date(at * 1000).toISOString(),
-    site: 'https://namasteindia-siegen.com',
-    data: { store: { restaurant: 'Namaste India', enabled: true, paused, accepting: !paused, auto_accept: false, prep: 25, server_time: at } },
+    site: 'https://spice-route.example',
+    data: { store: { restaurant: 'Spice Route Kitchen', enabled: true, paused, accepting: !paused, auto_accept: false, prep: 25, server_time: at } },
   };
 }
 

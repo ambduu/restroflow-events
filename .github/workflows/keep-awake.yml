@@ -1,0 +1,24 @@
+# Render's free plan sleeps after 15 minutes without traffic. The demo restaurant only
+# "cooks" while the service is awake, so ping it every 10 minutes during its opening
+# hours (11:25–22:05 Berlin = 09:25–21:05 UTC in summer, 10:25–21:05 UTC in winter).
+# Outside these hours it sleeps; on the next visit it catches up and the history replays from Kafka.
+# Note: GitHub pauses scheduled workflows after 60 days without commits – re-enable under Actions if needed.
+name: Keep demo awake
+
+on:
+  schedule:
+    - cron: '*/10 9-21 * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping
+        run: |
+          for i in 1 2 3; do
+            if curl -fsS --max-time 90 https://restroflow-events.onrender.com/healthz; then echo; exit 0; fi
+            sleep 20
+          done
+          echo "::warning::Demo did not answer"

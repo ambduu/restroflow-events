@@ -1,4 +1,5 @@
 import { mkdirSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
 import { dirname } from 'node:path';
 import { createKafka, ensureTopics, kafkaConfigFromEnv } from '@restroflow-events/kafka';
 import { loadTenants } from '@restroflow-events/ingest/app';
@@ -7,6 +8,7 @@ import { Projection } from '@restroflow-events/analytics/projection';
 import { startConsumer, type ConsumerStats } from '@restroflow-events/analytics/consumer';
 import { LiveHub } from '@restroflow-events/analytics/live';
 import { buildEdge } from './app.js';
+import { DemoRestaurant } from './demo.js';
 
 /**
  * Single-process deployment for free hosts (Render free: 512 MB, no persistent disk,
@@ -20,7 +22,12 @@ import { buildEdge } from './app.js';
  * counted twice.
  */
 async function main() {
-  const tenants = loadTenants();
+  // DEMO_TENANT (e.g. "demo"): built-in demo restaurant with simulated orders for the public dashboard.
+  // Its webhook secret is random per boot and never leaves the process.
+  const demoTenant = (process.env.DEMO_TENANT ?? '').trim();
+  const demoSecret = randomBytes(24).toString('hex');
+  const tenants = loadTenants(process.env.TENANTS ?? (demoTenant ? '{}' : ''));
+  if (demoTenant) tenants[demoTenant] = demoSecret;
   const replay = process.env.REPLAY_ON_START !== 'false';
   const baseGroup = process.env.ANALYTICS_GROUP_ID ?? 'restroflow-analytics';
   const groupId = replay ? `${baseGroup}-boot-${Date.now().toString(36)}` : baseGroup;
@@ -71,8 +78,24 @@ async function main() {
   stats = started.stats;
   app.log.info({ groupId, replay }, 'consumer started');
 
+  let demo: DemoRestaurant | null = null;
+  if (demoTenant) {
+    demo = new DemoRestaurant({
+      app,
+      tenant: demoTenant,
+      secret: demoSecret,
+      projection,
+      timeZone: process.env.DEMO_TIMEZONE ?? 'Europe/Berlin',
+      log: (m, x) => app.log.info(x ?? {}, m),
+    });
+    // give the consumer time to replay what is already in Kafka, so nothing is sent twice
+    demo.start(Number(process.env.DEMO_START_DELAY_MS ?? 45_000));
+    app.log.info({ tenant: demoTenant }, 'demo restaurant started');
+  }
+
   const shutdown = async (signal: string) => {
     app.log.info({ signal }, 'shutting down');
+    demo?.stop();
     await started.consumer.disconnect().catch(() => {});
     await app.close();
     await publisher.close().catch(() => {});

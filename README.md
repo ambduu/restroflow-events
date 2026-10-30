@@ -2,7 +2,7 @@
 
 **Real-time event platform for restaurant ordering, built on Apache Kafka.**
 
-**Live:** [restroflow-events.onrender.com](https://restroflow-events.onrender.com) – Render (free) + Aiven Kafka. The free server sleeps when idle, so the first visit can take about a minute.
+**Live demo:** [restroflow-events.onrender.com](https://restroflow-events.onrender.com) – Render (free) + Aiven Kafka. A simulated restaurant ("Spice Route Kitchen") takes ~30–50 orders every day around lunch and dinner; each step travels as a signed webhook through the real pipeline. The free server sleeps at night, so the first visit then takes about a minute.
 
 [RestroFlow](https://namasteindia-siegen.com/online-bestellen/) is a WordPress ordering system I built for restaurants (online ordering, kitchen display, POS integration). This project turns its order flow into a stream of events: signed webhooks go into Kafka, personal data is removed on the way in, and independent consumers build live statistics. It runs against a real restaurant (Namaste India, Siegen), without being in its critical path.
 
