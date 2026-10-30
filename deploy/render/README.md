@@ -15,7 +15,7 @@ The infrastructure is defined in [`render.yaml`](../../render.yaml). Render depl
 ## 1. Aiven Kafka
 
 1. console.aiven.io → **Create service** → **Apache Kafka** → **Free** plan, region in Europe.
-2. When it's running → **Overview**: copy the **Service URI** and download **CA certificate** (`ca.pem`), **Access certificate** (`service.cert`), **Access key** (`service.key`).
+2. When it's running → **Overview › Connection information › SASL**: copy the **Service URI** and the **Password**, and download the **CA certificate** (`ca.pem`). The free plan uses SASL (user `avnadmin` + password); client-certificate login is not available there.
 3. **Topics** → create, 2 partitions each:
    `restroflow.orders.v1`, `restroflow.catalog.v1`, `restroflow.store.v1`, `restroflow.dlq.v1`
 
@@ -29,9 +29,8 @@ The infrastructure is defined in [`render.yaml`](../../render.yaml). Render depl
 |---|---|
 | `TENANTS` | `{"namaste-india-siegen":"<webhook secret>"}` – make the secret with `openssl rand -hex 32` |
 | `KAFKA_BROKERS` | Aiven Service URI (`host:port`) |
+| `KAFKA_PASSWORD` | Aiven SASL password (user `avnadmin` is preset) |
 | `KAFKA_CA_PEM` | full contents of `ca.pem` |
-| `KAFKA_CERT_PEM` | full contents of `service.cert` |
-| `KAFKA_KEY_PEM` | full contents of `service.key` |
 
 4. **Apply**. The first build takes a few minutes; then `https://restroflow-events.onrender.com/healthz` answers.
 

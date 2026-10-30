@@ -28,9 +28,12 @@ services:
         sync: false              # {"namaste-india-siegen":"<webhook secret>"}
       - key: KAFKA_BROKERS
         sync: false              # Aiven service URI host:port
+      # Aiven free plan: SASL (user + password) over TLS
+      - key: KAFKA_SASL_MECHANISM
+        value: SCRAM-SHA-256
+      - key: KAFKA_USERNAME
+        value: avnadmin
+      - key: KAFKA_PASSWORD
+        sync: false              # Aiven › service › Connection information › SASL › Password
       - key: KAFKA_CA_PEM
-        sync: false              # contents of ca.pem
-      - key: KAFKA_CERT_PEM
-        sync: false              # contents of service.cert
-      - key: KAFKA_KEY_PEM
-        sync: false              # contents of service.key
+        sync: false              # contents of ca.pem (CA certificate)
